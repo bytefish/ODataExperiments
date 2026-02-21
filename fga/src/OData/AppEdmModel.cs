@@ -9,7 +9,7 @@ public static class AppEdmModel
 {
     public static IEdmModel GetEdmModel()
     {
-        var b = new ODataConventionModelBuilder(); 
+        ODataConventionModelBuilder b = new ODataConventionModelBuilder(); 
         
         b.EntitySet<Document>("Documents"); 
         b.EntitySet<Folder>("Folders"); 

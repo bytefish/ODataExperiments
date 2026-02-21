@@ -6,34 +6,55 @@ namespace ODataFga.Fga;
 
 public static class OpenFgaSetup
 {
-    public static async Task<string> EnsureStoreAndModel(string apiUrl)
+    public static async Task<string> EnsureStoreAndModel(string apiUrl, string storeName)
     {
-        OpenFgaClient client = new OpenFgaClient(new ClientConfiguration { ApiUrl = apiUrl });
+        OpenFgaClient client = new OpenFgaClient(new ClientConfiguration 
+        { 
+            ApiUrl = apiUrl 
+        });
 
+        // Check if the store "IntTestDemo" exists, if not create it
         ListStoresResponse listStoresResponse = await client.ListStores(new ClientListStoresRequest());
 
-        string? storeId = listStoresResponse.Stores?.FirstOrDefault(s => s.Name == "IntTestDemo")?.Id;
-
-        if (string.IsNullOrEmpty(storeId))
+        string? storeId = listStoresResponse.Stores?.FirstOrDefault(s => s.Name == storeName)?.Id;
+        
+        if (string.IsNullOrEmpty(storeId)) 
         {
-            CreateStoreResponse createStoreResponse = await client.CreateStore(new ClientCreateStoreRequest { Name = "IntTestDemo" });
+            ClientCreateStoreRequest request = new() { Name = storeName };
 
-            storeId = createStoreResponse.Id;
+            CreateStoreResponse createStoreResponse = await client.CreateStore(request); 
+            
+            storeId = createStoreResponse.Id; 
         }
 
         client.StoreId = storeId;
 
+        // Define the authorization model using the FgaModelBuilder
         List<TypeDefinition> typeDefinitions = new FgaModelBuilder()
             .Type("user").Type("group").Relation("member").Allow("user")
-            .Type("folder").Relation("viewer").Allow("user").Allow("group", "member")
-            .Type("document").Relation("parent").Allow("folder").Relation("owner").Allow("user")
-            .Relation("editor").Allow("user").OrRelation("owner")
-            .Relation("viewer").Allow("user").OrRelation("editor").OrRelation("parent", "viewer")
-            .Relation("approver").Allow("user")
+
+            .Type("folder")
+                .Relation("viewer").Allow("user").Allow("group", "member")
+
+            .Type("document")
+                .Relation("parent").Allow("folder")
+                .Relation("owner").Allow("user")
+                .Relation("editor").Allow("user").OrRelation("owner")
+                .Relation("viewer").Allow("user").OrRelation("editor").OrRelation("parent", "viewer")
+
+                .Relation("can_share").OrRelation("owner").OrRelation("editor")
+                .Relation("can_delete").OrRelation("owner")
+                .Relation("can_move").OrRelation("owner").OrRelation("editor")
             .Build();
 
-        await client.WriteAuthorizationModel(new ClientWriteAuthorizationModelRequest { SchemaVersion = "1.1", TypeDefinitions = typeDefinitions });
+        ClientWriteAuthorizationModelRequest clientWriteAuthorizationRequest = new() 
+        { 
+            SchemaVersion = "1.1", 
+            TypeDefinitions = typeDefinitions 
+        };
 
+        await client.WriteAuthorizationModel(clientWriteAuthorizationRequest);
+        
         return storeId;
     }
 }

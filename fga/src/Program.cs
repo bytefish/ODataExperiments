@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using ODataFga.Database;
 using ODataFga.Fga;
 using ODataFga.Hosted;
@@ -7,6 +8,7 @@ using ODataFga.OData;
 using ODataFga.Services;
 using ODataFga.Services.Implementations;
 using OpenFga.Sdk.Client;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,9 +19,9 @@ string fgaUrl = builder.Configuration["OpenFga:ApiUrl"] ?? "http://localhost:808
 string connectionString = builder.Configuration.GetConnectionString("Postgres") ?? "Host=localhost;Database=postgres;Username=postgres;Password=password";
 
 // Check if we got a Store to work with, if not create one and the model
-var storeId = await OpenFgaSetup.EnsureStoreAndModel(fgaUrl);
+string storeId = await OpenFgaSetup.EnsureStoreAndModel(fgaUrl, "DemoStore");
 
-// Register OpenFGA Client
+// Register OpenFGA Client for the configured store and API URL
 builder.Services.AddSingleton<IOpenFgaClient>(sp =>
 {
     return new OpenFgaClient(new ClientConfiguration { ApiUrl = fgaUrl, StoreId = storeId });
@@ -29,8 +31,22 @@ builder.Services.AddSingleton<IOpenFgaClient>(sp =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, HttpHeaderUserService>();
 
-// Register EF Core with PostgreSQL
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+// Register a DB Context Factory with EF Core Interceptors for RLS
+builder.Services.AddDbContextFactory<AppDbContext>((sp, options) => 
+{
+    options.UseNpgsql(connectionString);
+
+    // Inject our RLS Interceptor to push the Session State to Postgres
+    ICurrentUserService currentUser = sp.GetRequiredService<ICurrentUserService>();
+
+    options.AddInterceptors(new RlsInterceptor(currentUser));
+});
+
+// Resolve the DbContext from the Factory for regular usage in the app (e.g. in Controllers or Services)
+builder.Services.AddScoped(sp => 
+{
+    return sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext();
+});
 
 // Register the Bulk Permission Sync Service
 builder.Services.AddSingleton<IPermissionSyncService, PostgresBulkPermissionSyncService>();
@@ -47,31 +63,30 @@ builder.Services.AddControllers()
 // Background Worker
 builder.Services.AddHostedService<BitmaskWatcherService>();
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // Initialize the Database and Create required Functions
-using (var scope = app.Services.CreateScope())
+using (IServiceScope scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
+    AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
     await db.Database.EnsureCreatedAsync();
 
-    // Create the Recursive CTE Function
-    await db.Database.ExecuteSqlRawAsync(@"
-        CREATE OR REPLACE FUNCTION sp_resolve_ancestors(p_folder_id text)
-        RETURNS TABLE (""Id"" text) AS $$
-        BEGIN
-            RETURN QUERY
-            WITH RECURSIVE path_tree AS (
-                SELECT ""Id"", ""ParentId"", 1 as depth FROM ""Folders"" WHERE ""Id"" = p_folder_id
-                UNION ALL
-                SELECT f.""Id"", f.""ParentId"", p.depth + 1 FROM ""Folders"" f
-                INNER JOIN path_tree p ON f.""Id"" = p.""ParentId"" WHERE p.depth < 50 
-            )
-            SELECT pt.""Id"" FROM path_tree pt ORDER BY depth DESC;
-        END;
-        $$ LANGUAGE plpgsql;
-    ");
+    // Abstraction: Dynamically discover secured entities and apply RLS policies
+    IEnumerable<IEntityType> securedEntityTypes = db.Model.GetEntityTypes()
+        .Where(t => typeof(ISecuredResource).IsAssignableFrom(t.ClrType) && !t.ClrType.IsAbstract);
+
+    foreach (IEntityType entityType in securedEntityTypes)
+    {
+        string? tableName = entityType.GetTableName();
+
+        string? fgaType = entityType.ClrType.GetCustomAttribute<FgaTypeAttribute>()?.Name;
+
+        if (tableName != null && fgaType != null)
+        {
+            await db.Database.ExecuteSqlRawAsync(RlsPolicyGenerator.Generate(tableName, fgaType));
+        }
+    }
 }
 
 app.MapControllers();

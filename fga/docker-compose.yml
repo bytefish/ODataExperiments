@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # PostgreSQL instance for both your application data and OpenFGA's storage
+  postgres:
+    image: postgres:18-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # One-time migration container to prepare the Postgres database for OpenFGA
+  openfga-migrate:
+    image: openfga/openfga:v1.5.0
+    container_name: openfga-migrate
+    command: migrate
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://postgres:password@postgres:5432/postgres?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # OpenFGA API service
+  openfga:
+    image: openfga/openfga:v1.5.0
+    container_name: openfga
+    command: run
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://postgres:password@postgres:5432/postgres?sslmode=disable
+      # Disables playground authentication for local development
+      OPENFGA_PLAYGROUND_ENABLED: "true"
+    ports:
+      - "8080:8080" # HTTP API
+      - "8081:8081" # gRPC API
+      - "3000:3000" # OpenFGA Playground (UI)
+    depends_on:
+      openfga-migrate:
+        condition: service_completed_successfully

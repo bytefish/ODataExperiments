@@ -8,7 +8,7 @@ public class FgaModelBuilder
 
     public FgaTypeBuilder Type(string t)
     {
-        var d = new TypeDefinition
+        TypeDefinition d = new TypeDefinition
         {
             Type = t,
             Relations = new(),

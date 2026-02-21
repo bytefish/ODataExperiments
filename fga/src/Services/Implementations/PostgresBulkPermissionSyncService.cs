@@ -12,19 +12,19 @@ public class PostgresBulkPermissionSyncService : IPermissionSyncService
 {
     public async Task SyncForUserAsync(AppDbContext db, string userId, IEnumerable<PermissionIndex> permissions, CancellationToken ct = default)
     {
-        using var scope = new TransactionScope(
+        using TransactionScope scope = new TransactionScope(
             TransactionScopeOption.Required,
             new TransactionOptions { IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted },
             TransactionScopeAsyncFlowOption.Enabled);
 
-        var conn = (NpgsqlConnection)db.Database.GetDbConnection();
+        NpgsqlConnection conn = (NpgsqlConnection)db.Database.GetDbConnection();
 
         if (conn.State != ConnectionState.Open)
         {
             await conn.OpenAsync(ct);
         }
 
-        using (var cmd = new NpgsqlCommand("DELETE FROM \"Permissions\" WHERE \"UserId\" = @u", conn))
+        using (NpgsqlCommand cmd = new NpgsqlCommand("DELETE FROM \"Permissions\" WHERE \"UserId\" = @u", conn))
         {
             cmd.Parameters.AddWithValue("u", userId);
             await cmd.ExecuteNonQueryAsync(ct);
@@ -52,19 +52,19 @@ public class PostgresBulkPermissionSyncService : IPermissionSyncService
 
     public async Task SyncForObjectAsync(AppDbContext db, string objectType, string objectId, IEnumerable<PermissionIndex> permissions, CancellationToken ct = default)
     {
-        using var scope = new TransactionScope(
+        using TransactionScope scope = new TransactionScope(
             TransactionScopeOption.Required,
             new TransactionOptions { IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted },
             TransactionScopeAsyncFlowOption.Enabled);
 
-        var conn = (NpgsqlConnection)db.Database.GetDbConnection();
+        NpgsqlConnection conn = (NpgsqlConnection)db.Database.GetDbConnection();
 
         if (conn.State != ConnectionState.Open)
         {
             await conn.OpenAsync(ct);
         }
 
-        using (var cmd = new NpgsqlCommand("DELETE FROM \"Permissions\" WHERE \"ObjectType\" = @t AND \"ObjectId\" = @i", conn))
+        using (NpgsqlCommand cmd = new NpgsqlCommand("DELETE FROM \"Permissions\" WHERE \"ObjectType\" = @t AND \"ObjectId\" = @i", conn))
         {
             cmd.Parameters.AddWithValue("t", objectType);
             cmd.Parameters.AddWithValue("i", objectId);

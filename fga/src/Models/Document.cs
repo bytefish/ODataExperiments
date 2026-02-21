@@ -1,9 +1,12 @@
-﻿namespace ODataFga.Models;
+﻿using ODataFga.Fga;
+
+namespace ODataFga.Models;
 
 /// <summary>
 /// Document class represents a document entity in the system.
 /// </summary>
-public class Document
+[FgaType("document")]
+public class Document : ISecuredResource
 {
     /// <summary>
     /// Gets or sets the unique identifier for the object.
@@ -18,7 +21,7 @@ public class Document
     /// <summary>
     /// Gets or sets the unique identifier of the folder associated with this instance.
     /// </summary>
-    public string? FolderId { get; set; }
+    public string? ParentId { get; set; }
 
     /// <summary>
     /// Gets or sets the list of ancestor identifiers for the current entity.
