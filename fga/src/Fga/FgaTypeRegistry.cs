@@ -12,6 +12,14 @@ namespace ODataFga.Fga
             .Distinct()
             .ToArray()!;
 
-        public static string[] GetTrackedRelations() => new[] { "viewer", "editor", "owner" };
+        public static string[] GetTrackedRelations(string objectType) => objectType switch
+        {
+            "group" => new[] { "owner", "member" },
+            "folder" => new[] { "viewer" }, // Ordner haben in unserem Modell nur viewer
+            "document" => new[] { "owner", "editor", "viewer" },
+            _ => Array.Empty<string>()
+        };
+
+        public static string[] GetAllRelations() => new[] { "viewer", "editor", "owner", "member" };
     }
 }

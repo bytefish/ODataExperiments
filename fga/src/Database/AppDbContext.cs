@@ -13,7 +13,9 @@ public class AppDbContext : DbContext
     public DbSet<Document> Documents => Set<Document>();
     
     public DbSet<Folder> Folders => Set<Folder>();
-    
+
+    public DbSet<Group> Groups => Set<Group>();
+
     public DbSet<PermissionIndex> Permissions => Set<PermissionIndex>();
     
     public DbSet<SyncState> SyncStates => Set<SyncState>();

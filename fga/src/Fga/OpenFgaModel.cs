@@ -13,7 +13,6 @@ public static class OpenFgaSetup
             ApiUrl = apiUrl
         });
 
-        // Check if the store "IntTestDemo" exists, if not create it
         ListStoresResponse listStoresResponse = await client.ListStores(new ClientListStoresRequest());
 
         string? storeId = listStoresResponse.Stores?.FirstOrDefault(s => s.Name == storeName)?.Id;
@@ -31,7 +30,14 @@ public static class OpenFgaSetup
 
         // Define the authorization model using the FgaModelBuilder
         List<TypeDefinition> typeDefinitions = new FgaModelBuilder()
-            .Type("user").Type("group").Relation("member").Allow("user")
+            .Type("user")
+            
+            .Type("group")
+                .Relation("parent").Allow("group")
+                .Relation("owner").Allow("user")
+                .Relation("member").Allow("user").Allow("group", "member")
+                .Relation("can_manage").OrRelation("owner")
+                .Relation("can_view").Allow("user").OrRelation("member").OrRelation("owner").OrRelation("parent", "can_view")
 
             .Type("folder")
                 .Relation("viewer").Allow("user").Allow("group", "member")
@@ -41,7 +47,6 @@ public static class OpenFgaSetup
                 .Relation("owner").Allow("user")
                 .Relation("editor").Allow("user").OrRelation("owner")
                 .Relation("viewer").Allow("user").OrRelation("editor").OrRelation("parent", "viewer")
-
                 .Relation("can_share").OrRelation("owner").OrRelation("editor")
                 .Relation("can_delete").OrRelation("owner")
                 .Relation("can_move").OrRelation("owner").OrRelation("editor")

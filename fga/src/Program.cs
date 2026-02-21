@@ -53,6 +53,7 @@ builder.Services.AddSingleton<IPermissionSyncService, PostgresBulkPermissionSync
 
 // Register the Document Service handling the main logic for creating documents and resolving permissions
 builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IGroupService, GroupService>();
 
 // Register Controllers with OData support
 builder.Services.AddControllers()
@@ -72,7 +73,7 @@ using (IServiceScope scope = app.Services.CreateScope())
 
     await db.Database.EnsureCreatedAsync();
 
-    // Abstraction: Dynamically discover secured entities and apply RLS policies
+    // Dynamically discover secured entities and apply RLS policies
     IEnumerable<IEntityType> securedEntityTypes = db.Model.GetEntityTypes()
         .Where(t => typeof(ISecuredResource).IsAssignableFrom(t.ClrType) && !t.ClrType.IsAbstract);
 

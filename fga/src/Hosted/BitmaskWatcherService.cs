@@ -62,7 +62,6 @@ public class BitmaskWatcherService : BackgroundService
 
         // Get the list of tracked types and relations from the registry
         string[] trackedTypes = FgaTypeRegistry.GetTrackedTypes();
-        string[] trackedRelations = FgaTypeRegistry.GetTrackedRelations();
 
         ReadChangesResponse response;
         
@@ -116,12 +115,12 @@ public class BitmaskWatcherService : BackgroundService
 
             foreach ((string Type, string Id) obj in objectsToReconcile)
             {
-                await ReconcileObject(db, _permissionSyncService, _fga, obj.Type, obj.Id, trackedRelations, ct);
+                await ReconcileObject(db, _permissionSyncService, _fga, obj.Type, obj.Id, ct);
             }
 
             foreach (string userId in usersToReconcile)
             {
-                await ReconcileUser(db, _permissionSyncService, _fga, userId, trackedTypes, trackedRelations, ct);
+                await ReconcileUser(db, _permissionSyncService, _fga, userId, trackedTypes, ct);
             }
         }
 
@@ -140,9 +139,11 @@ public class BitmaskWatcherService : BackgroundService
     /// <summary>
     /// Reconciles permissions for an object by listing all users that have access to the object for each tracked relation,
     /// </summary>
-    private async Task ReconcileObject(AppDbContext db, IPermissionSyncService permissionSyncService, IOpenFgaClient fga, string type, string id, string[] relations, CancellationToken ct)
+    private async Task ReconcileObject(AppDbContext db, IPermissionSyncService permissionSyncService, IOpenFgaClient fga, string type, string id, CancellationToken ct)
     {
         List<PermissionIndex> permissions = [];
+
+        string[] relations = FgaTypeRegistry.GetTrackedRelations(type);
 
         foreach (string rel in relations)
         {
@@ -170,12 +171,14 @@ public class BitmaskWatcherService : BackgroundService
     /// This is necessary to handle changes to user permissions that may not be captured by object-centric 
     /// reconciliation, such as changes to group memberships or direct user permissions on objects.
     /// </summary>
-    private async Task ReconcileUser(AppDbContext db, IPermissionSyncService permissionSyncService, IOpenFgaClient fga, string userId, string[] types, string[] relations, CancellationToken ct)
+    private async Task ReconcileUser(AppDbContext db, IPermissionSyncService permissionSyncService, IOpenFgaClient fga, string userId, string[] types, CancellationToken ct)
     {
         List<PermissionIndex> permissions = new List<PermissionIndex>();
-
+        
         foreach (string type in types)
         {
+            string[] relations = FgaTypeRegistry.GetTrackedRelations(type);
+
             foreach (string rel in relations)
             {
                 ListObjectsResponse response = await fga.ListObjects(new ClientListObjectsRequest { User = userId, Relation = rel, Type = type }, cancellationToken: ct);
