@@ -8,23 +8,23 @@ public static class OpenFgaSetup
 {
     public static async Task<string> EnsureStoreAndModel(string apiUrl, string storeName)
     {
-        OpenFgaClient client = new OpenFgaClient(new ClientConfiguration 
-        { 
-            ApiUrl = apiUrl 
+        OpenFgaClient client = new OpenFgaClient(new ClientConfiguration
+        {
+            ApiUrl = apiUrl
         });
 
         // Check if the store "IntTestDemo" exists, if not create it
         ListStoresResponse listStoresResponse = await client.ListStores(new ClientListStoresRequest());
 
         string? storeId = listStoresResponse.Stores?.FirstOrDefault(s => s.Name == storeName)?.Id;
-        
-        if (string.IsNullOrEmpty(storeId)) 
+
+        if (string.IsNullOrEmpty(storeId))
         {
             ClientCreateStoreRequest request = new() { Name = storeName };
 
-            CreateStoreResponse createStoreResponse = await client.CreateStore(request); 
-            
-            storeId = createStoreResponse.Id; 
+            CreateStoreResponse createStoreResponse = await client.CreateStore(request);
+
+            storeId = createStoreResponse.Id;
         }
 
         client.StoreId = storeId;
@@ -47,14 +47,14 @@ public static class OpenFgaSetup
                 .Relation("can_move").OrRelation("owner").OrRelation("editor")
             .Build();
 
-        ClientWriteAuthorizationModelRequest clientWriteAuthorizationRequest = new() 
-        { 
-            SchemaVersion = "1.1", 
-            TypeDefinitions = typeDefinitions 
+        ClientWriteAuthorizationModelRequest clientWriteAuthorizationRequest = new()
+        {
+            SchemaVersion = "1.1",
+            TypeDefinitions = typeDefinitions
         };
 
         await client.WriteAuthorizationModel(clientWriteAuthorizationRequest);
-        
+
         return storeId;
     }
 }
